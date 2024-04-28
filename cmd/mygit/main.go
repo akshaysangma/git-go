@@ -36,12 +36,12 @@ func main() {
 			os.Exit(1)
 		}
 
-		if len(os.Args[4]) < 42 {
-			fmt.Fprintf(os.Stderr, "Not a valid object name %s\n", os.Args[4])
+		if len(os.Args[3]) < 40 {
+			fmt.Fprintf(os.Stderr, "Not a valid object name %s\n", os.Args[3])
 			os.Exit(1)
 		}
 
-		blobPath := path.Join(".git/objects", os.Args[4][:2], os.Args[4][2:])
+		blobPath := path.Join(".git/objects", os.Args[3][:2], os.Args[3][2:])
 		compressedFile, err := os.Open(blobPath)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Object %s not found\n", blobPath)
