@@ -1,12 +1,11 @@
 package main
 
 import (
-	"compress/zlib"
 	"fmt"
-	"io"
 	"os"
 	"path"
-	"strconv"
+
+	"github.com/codecrafters-io/git-starter-go/object"
 )
 
 // Usage: your_git.sh <command> <arg1> <arg2> ...
@@ -18,11 +17,14 @@ func main() {
 
 	switch command := os.Args[1]; command {
 	case "init":
-		for _, dir := range []string{".git", ".git/objects", ".git/refs"} {
+		var gitInitFiles = [3]string{".git", ".git/objects", ".git/refs"}
+
+		for _, dir := range gitInitFiles {
 			if err := os.MkdirAll(dir, 0755); err != nil {
 				fmt.Fprintf(os.Stderr, "Error creating directory %s : %s ", dir, err)
 			}
 		}
+
 		headFileContents := []byte("ref: refs/heads/main\n")
 		if err := os.WriteFile(".git/HEAD", headFileContents, 0644); err != nil {
 			fmt.Fprintf(os.Stderr, "Error writing file %s : %s", ".git/HEAD", err)
@@ -32,7 +34,7 @@ func main() {
 
 	case "cat-file":
 		if len(os.Args) <= 3 || os.Args[2] != "-p" {
-			fmt.Fprintln(os.Stderr, "usage: mygit cat-file -p <blob_sha>")
+			fmt.Fprintln(os.Stderr, "usage: mygit cat-file -p <object_id>")
 			os.Exit(1)
 		}
 
@@ -41,88 +43,54 @@ func main() {
 			os.Exit(1)
 		}
 
-		blobPath := path.Join(".git/objects", os.Args[3][:2], os.Args[3][2:])
-		compressedFile, err := os.Open(blobPath)
+		content, err := catFile(os.Args[3])
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Object %s not found\n", blobPath)
+			fmt.Fprintln(os.Stderr, err)
+		}
+
+		fmt.Print(content)
+
+	case "hash-object":
+		if len(os.Args) <= 3 || os.Args[2] != "-w" {
+			fmt.Fprintln(os.Stderr, "usage: mygit hash-object -w <filepath>")
 			os.Exit(1)
 		}
-		defer compressedFile.Close()
 
-		r, err := zlib.NewReader(compressedFile)
+		objectID, err := hashFile(os.Args[3])
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Object incorrect format")
-			os.Exit(1)
-		}
-		defer r.Close()
-
-		var buf []byte
-		headerEnd := byte(' ')
-		nullByte := byte(0)
-
-		buffer := make([]byte, 1)
-		for {
-			n, err := r.Read(buffer)
-			if err != nil && err != io.EOF {
-				fmt.Fprintf(os.Stderr, "Error reading object data: %s\n", err)
-				os.Exit(1)
-			}
-
-			if n == 0 || buffer[0] == headerEnd {
-				break
-			}
-
-			buf = append(buf, buffer...)
+			fmt.Fprintln(os.Stderr, err)
 		}
 
-		header := string(buf)
-		buf = nil
-
-		if header != "blob" {
-			fmt.Fprintf(os.Stderr, "Invalid Object type : %s\n", header)
-			os.Exit(1)
-		}
-
-		for {
-			n, err := r.Read(buffer)
-			if err != nil && err != io.EOF {
-				fmt.Fprintf(os.Stderr, "Error reading object data: %s\n", err)
-				os.Exit(1)
-			}
-
-			if n == 0 || buffer[0] == nullByte {
-				break
-			}
-
-			buf = append(buf, buffer...)
-		}
-
-		s := string(buf)
-		buf = nil
-
-		size, err := strconv.ParseInt(s, 10, 64)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error reading object data: %s\n", err)
-			os.Exit(1)
-		}
-
-		contentBuffer := make([]byte, size)
-		n, err := r.Read(contentBuffer)
-		if err != nil && err != io.EOF {
-			fmt.Fprintf(os.Stderr, "Error reading object data: %s\n", err)
-			os.Exit(1)
-		}
-
-		if int64(n) < size {
-			fmt.Fprintf(os.Stderr, "Object data corrupted\n")
-			os.Exit(1)
-		}
-
-		content := string(contentBuffer)
-		fmt.Fprint(os.Stdout, content)
+		fmt.Println(objectID)
 
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown command %s\n", command)
 		os.Exit(1)
 	}
+}
+
+func catFile(objectID string) (string, error) {
+	blobPath := path.Join(".git/objects", objectID[:2], objectID[2:])
+	compressedFile, err := os.Open(blobPath)
+	if err != nil {
+		return "", fmt.Errorf("object %s not found", blobPath)
+	}
+	defer compressedFile.Close()
+
+	blob, err := object.GetBlob(compressedFile)
+	if err != nil {
+		return "", err
+	}
+
+	return blob.Content, nil
+}
+
+func hashFile(filepath string) (string, error) {
+	f, err := os.Open(filepath)
+	if err != nil {
+		return "", fmt.Errorf("object %s not found", filepath)
+	}
+	defer f.Close()
+
+	return object.CreateBlob(f)
 }
