@@ -100,3 +100,7 @@ func GetBlob(reader io.Reader) (*Blob, error) {
 		Content: content,
 	}, nil
 }
+
+func (b *Blob) String() string {
+	return fmt.Sprint(b.Content)
+}

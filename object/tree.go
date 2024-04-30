@@ -67,7 +67,6 @@ func GetTree(reader io.Reader) (*Tree, error) {
 		var hashBuffer [20]byte
 		_, rErr := decompressed.Read(hashBuffer[:])
 		if rErr == io.EOF {
-			_, _ = decompressed.ReadBytes(nullByte)
 			break
 		}
 		if rErr != nil {

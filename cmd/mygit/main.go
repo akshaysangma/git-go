@@ -5,7 +5,7 @@ import (
 	"os"
 	"path"
 
-	"github.com/codecrafters-io/git-starter-go/object"
+	"github.com/akshaysangma/git-go/object"
 )
 
 // Usage: your_git.sh <command> <arg1> <arg2> ...
@@ -43,12 +43,12 @@ func main() {
 			os.Exit(1)
 		}
 
-		content, err := catFile(os.Args[3])
+		blob, err := catFile(os.Args[3])
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 		}
 
-		fmt.Print(content)
+		fmt.Print(blob)
 
 	case "hash-object":
 		if len(os.Args) <= 3 || os.Args[2] != "-w" {
@@ -90,20 +90,20 @@ func main() {
 	}
 }
 
-func catFile(blobID string) (string, error) {
+func catFile(blobID string) (*object.Blob, error) {
 	blobPath := path.Join(".git/objects", blobID[:2], blobID[2:])
 	compressedBuf, err := os.Open(blobPath)
 	if err != nil {
-		return "", fmt.Errorf("object %s not found", blobPath)
+		return &object.Blob{}, fmt.Errorf("object %s not found", blobPath)
 	}
 	defer compressedBuf.Close()
 
 	blob, err := object.GetBlob(compressedBuf)
 	if err != nil {
-		return "", err
+		return &object.Blob{}, err
 	}
 
-	return blob.Content, nil
+	return blob, nil
 }
 
 func hashFile(filepath string) (string, error) {
