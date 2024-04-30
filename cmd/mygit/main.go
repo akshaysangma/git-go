@@ -59,9 +59,30 @@ func main() {
 		objectID, err := hashFile(os.Args[3])
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
 		}
 
 		fmt.Println(objectID)
+
+	case "ls-tree":
+
+		if len(os.Args) < 3 || os.Args[2] != "--name-only" {
+			fmt.Fprintln(os.Stderr, "usage: mygit ls-tree [--name-only] <tree_hash>")
+			os.Exit(1)
+		}
+
+		tree, err := lsTree(os.Args[3])
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+
+		if os.Args[2] == "--name-only" {
+			fmt.Print(tree.NameOnlyString())
+			os.Exit(0)
+		}
+
+		fmt.Print(tree)
 
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown command %s\n", command)
@@ -69,15 +90,15 @@ func main() {
 	}
 }
 
-func catFile(objectID string) (string, error) {
-	blobPath := path.Join(".git/objects", objectID[:2], objectID[2:])
-	compressedFile, err := os.Open(blobPath)
+func catFile(blobID string) (string, error) {
+	blobPath := path.Join(".git/objects", blobID[:2], blobID[2:])
+	compressedBuf, err := os.Open(blobPath)
 	if err != nil {
 		return "", fmt.Errorf("object %s not found", blobPath)
 	}
-	defer compressedFile.Close()
+	defer compressedBuf.Close()
 
-	blob, err := object.GetBlob(compressedFile)
+	blob, err := object.GetBlob(compressedBuf)
 	if err != nil {
 		return "", err
 	}
@@ -93,4 +114,19 @@ func hashFile(filepath string) (string, error) {
 	defer f.Close()
 
 	return object.CreateBlob(f)
+}
+
+func lsTree(treeID string) (*object.Tree, error) {
+	blobPath := path.Join(".git/objects", treeID[:2], treeID[2:])
+	compressedBuf, err := os.Open(blobPath)
+	if err != nil {
+		return &object.Tree{}, fmt.Errorf("object %s not found", blobPath)
+	}
+	defer compressedBuf.Close()
+
+	tree, err := object.GetTree(compressedBuf)
+	if err != nil {
+		return &object.Tree{}, err
+	}
+	return tree, nil
 }

@@ -1,6 +1,7 @@
 package object
 
 import (
+	"bytes"
 	"compress/zlib"
 	"crypto/sha1"
 	"fmt"
@@ -8,11 +9,6 @@ import (
 	"os"
 	"path"
 	"strconv"
-)
-
-const (
-	headerEnd = byte(' ')
-	nullByte  = byte(0)
 )
 
 type Blob struct {
@@ -61,57 +57,33 @@ func GetBlob(reader io.Reader) (*Blob, error) {
 
 	r, err := zlib.NewReader(reader)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Object incorrect format")
-		os.Exit(1)
+		return &Blob{}, fmt.Errorf("object incorrect format: unable to decommpress")
 	}
 	defer r.Close()
 
-	var buf []byte
-	buffer := make([]byte, 1)
+	var decompressed bytes.Buffer
 
-	for {
-		n, err := r.Read(buffer)
-		if err != nil && err != io.EOF {
-			return &Blob{}, fmt.Errorf("error reading object data: %w", err)
-		}
+	io.Copy(&decompressed, r)
 
-		if n == 0 || buffer[0] == headerEnd {
-			break
-		}
-
-		buf = append(buf, buffer...)
-	}
-
-	header := string(buf)
-	buf = nil
-
-	if header != "blob" {
-		return &Blob{}, fmt.Errorf("invalid Object type : %s", header)
-	}
-
-	for {
-		n, err := r.Read(buffer)
-		if err != nil && err != io.EOF {
-			return &Blob{}, fmt.Errorf("error reading object data: %w", err)
-		}
-
-		if n == 0 || buffer[0] == nullByte {
-			break
-		}
-
-		buf = append(buf, buffer...)
-	}
-
-	s := string(buf)
-	buf = nil
-
-	size, err := strconv.ParseInt(s, 10, 64)
+	headerBuf, err := decompressed.ReadBytes(spaceByte)
 	if err != nil {
-		return &Blob{}, fmt.Errorf("error reading object data: %w", err)
+		return &Blob{}, fmt.Errorf("object incorrect format: unable to find space byte")
+	}
+
+	header := string(headerBuf)
+
+	sizeBuf, err := decompressed.ReadBytes(nullByte)
+	if err != nil {
+		return &Blob{}, fmt.Errorf("object incorrect format: unable to find null byte")
+	}
+
+	size, err := strconv.ParseInt(string(bytes.Trim(sizeBuf, string(nullByte))), 10, 64)
+	if err != nil {
+		return &Blob{}, fmt.Errorf("object incorrect format: size is incorrect: %w", err)
 	}
 
 	contentBuffer := make([]byte, size)
-	n, err := r.Read(contentBuffer)
+	n, err := decompressed.Read(contentBuffer[:])
 	if err != nil && err != io.EOF {
 		return &Blob{}, fmt.Errorf("error reading object data: %w", err)
 	}
