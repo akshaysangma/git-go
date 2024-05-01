@@ -3,8 +3,11 @@ package object
 import (
 	"bytes"
 	"compress/zlib"
+	"encoding/hex"
 	"fmt"
 	"io"
+	"os"
+	"path"
 	"strconv"
 	"strings"
 )
@@ -19,6 +22,65 @@ type Tree struct {
 	Header  string
 	Size    int64
 	Content []*TreeEntry
+}
+
+func CreateTree(dir string) (string, error) {
+	dirItems, err := os.ReadDir(dir)
+	if err != nil {
+		return "", err
+	}
+	content := ""
+
+	for _, item := range dirItems {
+		filepath := path.Join(dir, item.Name())
+		if item.IsDir() {
+			if item.Name() == excludeDir {
+				continue
+			}
+			content += "40000 " + item.Name() + string(nullByte)
+
+			hash, err := CreateTree(filepath)
+			if err != nil {
+				return "", err
+			}
+
+			hash20sha, err := hex.DecodeString(hash)
+			if err != nil {
+				return "", err
+			}
+
+			content += string(hash20sha)
+		} else {
+			content += "100644 " + item.Name() + string(nullByte)
+			f, err := os.Open(filepath)
+			if err != nil {
+				return "", fmt.Errorf("object %s not found", filepath)
+			}
+			defer f.Close()
+			hash, err := CreateBlob(f)
+			if err != nil {
+				return "", err
+			}
+			hash20sha, err := hex.DecodeString(hash)
+			if err != nil {
+				return "", err
+			}
+
+			content += string(hash20sha)
+		}
+	}
+	output := "tree " + strconv.Itoa(len(content)) + string(nullByte) + content
+	hash, err := generateHash([]byte(output))
+	if err != nil {
+		return "", err
+	}
+
+	err = createObjectFile(hash, []byte(output))
+	if err != nil {
+		return "", err
+	}
+
+	return hash, nil
 }
 
 func GetTree(reader io.Reader) (*Tree, error) {

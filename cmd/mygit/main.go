@@ -84,6 +84,13 @@ func main() {
 
 		fmt.Print(tree)
 
+	case "write-tree":
+		hash, err := writeTree(".")
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+		}
+		fmt.Println(hash)
+
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown command %s\n", command)
 		os.Exit(1)
@@ -129,4 +136,8 @@ func lsTree(treeID string) (*object.Tree, error) {
 		return &object.Tree{}, err
 	}
 	return tree, nil
+}
+
+func writeTree(dir string) (string, error) {
+	return object.CreateTree(dir)
 }

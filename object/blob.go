@@ -3,11 +3,8 @@ package object
 import (
 	"bytes"
 	"compress/zlib"
-	"crypto/sha1"
 	"fmt"
 	"io"
-	"os"
-	"path"
 	"strconv"
 )
 
@@ -25,32 +22,16 @@ func CreateBlob(reader io.Reader) (string, error) {
 
 	data := []byte(fmt.Sprintf("blob %d%s%s", len(content), string(nullByte), string(content)))
 
-	hasher := sha1.New()
-	_, err = hasher.Write(data)
-	if err != nil {
-		return "", err
-	}
-	sha1Hash := hasher.Sum(nil)
-	objectID := fmt.Sprintf("%x", sha1Hash)
-
-	if err = os.Mkdir(path.Join(".git/objects", string(objectID[:2])), 0755); err != nil {
-		return "", err
-	}
-
-	f, err := os.Create(path.Join(".git/objects", string(objectID[:2]), string(objectID[2:])))
-	if err != nil {
-		return "", err
-	}
-	defer f.Close()
-
-	zlibWriter := zlib.NewWriter(f)
-	defer zlibWriter.Close()
-	_, err = zlibWriter.Write(data)
+	objectID, err := generateHash(data)
 	if err != nil {
 		return "", err
 	}
 
-	return string(objectID), nil
+	if err := createObjectFile(objectID, data); err != nil {
+		return "", err
+	}
+
+	return objectID, nil
 }
 
 func GetBlob(reader io.Reader) (*Blob, error) {
