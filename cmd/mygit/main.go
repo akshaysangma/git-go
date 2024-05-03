@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"time"
 
 	"github.com/akshaysangma/git-go/object"
 )
@@ -91,6 +92,21 @@ func main() {
 		}
 		fmt.Println(hash)
 
+	case "commit-tree":
+		// TODO: Arg parsing
+		// Assuming usage as mygit commit-tree <tree_sha> -p <commit_sha> -m <message>
+		treeSHA := os.Args[2]
+		parentSHA := os.Args[4]
+		message := os.Args[6]
+
+		hash, err := commitTree(treeSHA, parentSHA, message)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+
+		fmt.Println(hash)
+
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown command %s\n", command)
 		os.Exit(1)
@@ -140,4 +156,16 @@ func lsTree(treeID string) (*object.Tree, error) {
 
 func writeTree(dir string) (string, error) {
 	return object.CreateTree(dir)
+}
+
+func commitTree(treeSHA string, parentSHA string, message string) (string, error) {
+	commit := object.Commit{
+		Tree:          treeSHA,
+		Parent:        parentSHA,
+		Commiter:      "default",
+		CommiterEmail: "default@example.com",
+		Message:       message,
+		Timestamp:     fmt.Sprintf("%d %s", time.Now().Unix(), "+0000"),
+	}
+	return commit.Commit()
 }
